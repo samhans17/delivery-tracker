@@ -1,0 +1,27 @@
+# Systemd service file for Delivery Tracker
+# Location: /etc/systemd/system/delivery-tracker.service
+
+[Unit]
+Description=Delivery Tracker - Transport Management System
+Documentation=https://transport.nvdenterprise.com
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/ahmad-software
+Environment=NODE_ENV=production
+Environment=PORT=3000
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=delivery-tracker
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
