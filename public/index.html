@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Delivery Tracker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Login Screen -->
+  <div id="loginScreen" class="screen">
+    <div class="login-container">
+      <h1>🚚 Delivery Tracker</h1>
+      <form id="loginForm">
+        <input type="text" id="username" placeholder="Username" required>
+        <input type="password" id="password" placeholder="Password" required>
+        <button type="submit">Login</button>
+        <div id="loginError" class="error"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Dashboard Screen -->
+  <div id="dashboardScreen" class="screen hidden">
+    <div class="header">
+      <h1>🚚 Delivery Tracker</h1>
+      <div class="header-right">
+        <span id="welcomeText"></span>
+        <button onclick="logout()" class="btn-secondary">Logout</button>
+      </div>
+    </div>
+
+    <div class="container">
+      <!-- Navigation Tabs -->
+      <div class="tabs">
+        <button class="tab active" onclick="showTab('dashboard')">📊 Dashboard</button>
+        <button class="tab" onclick="showTab('entries')">📝 Entries</button>
+        <button class="tab" onclick="showTab('routes')">🛣️ Routes</button>
+        <button class="tab" onclick="showTab('products')">📦 Products</button>
+      </div>
+
+      <!-- Dashboard Tab -->
+      <div id="dashboardTab" class="tab-content">
+        <div class="stats-header">
+          <h2>Monthly Statistics</h2>
+          <div class="month-selector">
+            <select id="statsMonth"></select>
+            <select id="statsYear"></select>
+            <button onclick="loadStats()" class="btn-primary">Load</button>
+          </div>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <h3>Total Entries</h3>
+            <div class="stat-value" id="statTotalEntries">0</div>
+          </div>
+          <div class="stat-card">
+            <h3>Total Tons</h3>
+            <div class="stat-value" id="statTotalTons">0</div>
+          </div>
+          <div class="stat-card">
+            <h3>Total Revenue</h3>
+            <div class="stat-value" id="statTotalRevenue">Rs 0</div>
+          </div>
+          <div class="stat-card">
+            <h3>Avg Rate/Entry</h3>
+            <div class="stat-value" id="statAvgRate">Rs 0</div>
+          </div>
+        </div>
+        <div class="product-breakdown">
+          <h3>Product Breakdown</h3>
+          <table id="productBreakdownTable">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Count</th>
+                <th>Total Tons</th>
+                <th>Total Revenue</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Entries Tab -->
+      <div id="entriesTab" class="tab-content hidden">
+        <div class="section-header">
+          <h2>Delivery Entries</h2>
+          <button onclick="showAddEntryForm()" class="btn-primary">+ Add Entry</button>
+        </div>
+
+        <!-- Add/Edit Entry Form -->
+        <div id="entryFormContainer" class="form-container hidden">
+          <h3 id="entryFormTitle">Add New Entry</h3>
+          <form id="entryForm">
+            <input type="hidden" id="entryId">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Car Number</label>
+                <input type="text" id="entryCarNumber" required placeholder="e.g., ABC-123">
+              </div>
+              <div class="form-group">
+                <label>Entry Date</label>
+                <input type="date" id="entryDate" required>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Route</label>
+                <select id="entryRoute" required></select>
+              </div>
+              <div class="form-group">
+                <label>Product</label>
+                <select id="entryProduct" required></select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Quantity (Tons)</label>
+                <input type="number" id="entryQuantity" step="0.01" required placeholder="e.g., 10.5">
+              </div>
+              <div class="form-group">
+                <label>Calculated Rate (Auto)</label>
+                <input type="text" id="entryCalculatedRate" readonly placeholder="Auto-calculated">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn-primary">Save Entry</button>
+              <button type="button" onclick="cancelEntryForm()" class="btn-secondary">Cancel</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Entries List -->
+        <div class="table-container">
+          <table id="entriesTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Car Number</th>
+                <th>Route</th>
+                <th>Product</th>
+                <th>Quantity (Tons)</th>
+                <th>Rate</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Routes Tab -->
+      <div id="routesTab" class="tab-content hidden">
+        <div class="section-header">
+          <h2>Routes Management</h2>
+          <button onclick="showAddRouteForm()" class="btn-primary">+ Add Route</button>
+        </div>
+
+        <!-- Add/Edit Route Form -->
+        <div id="routeFormContainer" class="form-container hidden">
+          <h3 id="routeFormTitle">Add New Route</h3>
+          <form id="routeForm">
+            <input type="hidden" id="routeId">
+            <div class="form-group">
+              <label>Route Name</label>
+              <input type="text" id="routeName" required placeholder="e.g., Karachi to Lahore">
+            </div>
+            <div class="form-group">
+              <label>Description (Optional)</label>
+              <textarea id="routeDescription" rows="3" placeholder="Additional details about the route"></textarea>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn-primary">Save Route</button>
+              <button type="button" onclick="cancelRouteForm()" class="btn-secondary">Cancel</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Routes List -->
+        <div class="table-container">
+          <table id="routesTable">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Products Tab -->
+      <div id="productsTab" class="tab-content hidden">
+        <div class="section-header">
+          <h2>Products Management</h2>
+          <button onclick="showAddProductForm()" class="btn-primary">+ Add Product</button>
+        </div>
+
+        <!-- Add/Edit Product Form -->
+        <div id="productFormContainer" class="form-container hidden">
+          <h3 id="productFormTitle">Add New Product</h3>
+          <form id="productForm">
+            <input type="hidden" id="productId">
+            <div class="form-group">
+              <label>Product Name</label>
+              <input type="text" id="productName" required placeholder="e.g., Cement">
+            </div>
+            <div class="form-group">
+              <label>Price per Ton (Rs)</label>
+              <input type="number" id="productPrice" step="0.01" required placeholder="e.g., 5000">
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn-primary">Save Product</button>
+              <button type="button" onclick="cancelProductForm()" class="btn-secondary">Cancel</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Products List -->
+        <div class="table-container">
+          <table id="productsTable">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Price per Ton</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
