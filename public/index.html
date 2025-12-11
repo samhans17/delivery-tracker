@@ -38,6 +38,7 @@
         <button class="tab" onclick="showTab('routes')">🛣️ Routes</button>
         <button class="tab" onclick="showTab('products')">📦 Products</button>
         <button class="tab" onclick="showTab('cars')">🚗 Cars</button>
+        <button class="tab" onclick="showTab('expenses')">💸 Expenses</button>
         <button class="tab" onclick="showTab('pricing')">💰 Pricing</button>
       </div>
 
@@ -276,6 +277,130 @@
             </thead>
             <tbody></tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- Expenses Tab -->
+      <div id="expensesTab" class="tab-content hidden">
+        <div class="section-header">
+          <h2>Expenses Management</h2>
+          <button onclick="showAddExpenseForm()" class="btn-primary">+ Add Expense</button>
+        </div>
+
+        <!-- Expense Statistics -->
+        <div class="expense-stats">
+          <div class="stats-header">
+            <h3>Expense Summary</h3>
+            <div class="expense-filters">
+              <select id="expenseFilterCar" onchange="loadExpenses()">
+                <option value="">All Cars</option>
+              </select>
+              <select id="expenseFilterMonth"></select>
+              <select id="expenseFilterYear"></select>
+              <select id="expenseFilterType" onchange="loadExpenses()">
+                <option value="">All Types</option>
+              </select>
+              <button onclick="loadExpenses()" class="btn-primary">Filter</button>
+            </div>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <h4>Total Expenses</h4>
+              <div class="stat-value" id="expenseTotalCount">0</div>
+            </div>
+            <div class="stat-card">
+              <h4>Total Amount</h4>
+              <div class="stat-value" id="expenseTotalAmount">Rs 0</div>
+            </div>
+            <div class="stat-card">
+              <h4>Average Expense</h4>
+              <div class="stat-value" id="expenseAvgAmount">Rs 0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Add/Edit Expense Form -->
+        <div id="expenseFormContainer" class="form-container hidden">
+          <h3 id="expenseFormTitle">Add New Expense</h3>
+          <form id="expenseForm">
+            <input type="hidden" id="expenseId">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Car</label>
+                <select id="expenseCar" required></select>
+              </div>
+              <div class="form-group">
+                <label>Expense Date</label>
+                <input type="date" id="expenseDate" required>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Expense Type</label>
+                <select id="expenseType" required></select>
+              </div>
+              <div class="form-group">
+                <label>Amount (Rs)</label>
+                <input type="number" id="expenseAmount" step="0.01" required placeholder="e.g., 5000">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Description (Optional)</label>
+              <textarea id="expenseDescription" rows="2" placeholder="Additional details about the expense"></textarea>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn-primary">Save Expense</button>
+              <button type="button" onclick="cancelExpenseForm()" class="btn-secondary">Cancel</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Expenses List -->
+        <div class="table-container">
+          <table id="expensesTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Car Number</th>
+                <th>Expense Type</th>
+                <th>Amount</th>
+                <th>Description</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <!-- Expense Breakdown Section -->
+        <div class="expense-breakdown">
+          <div class="breakdown-section">
+            <h3>Breakdown by Type</h3>
+            <table id="expenseTypeBreakdownTable">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Count</th>
+                  <th>Total Amount</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <div class="breakdown-section">
+            <h3>Breakdown by Car</h3>
+            <table id="expenseCarBreakdownTable">
+              <thead>
+                <tr>
+                  <th>Car Number</th>
+                  <th>Count</th>
+                  <th>Total Amount</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
         </div>
       </div>
 

@@ -49,6 +49,40 @@ function initializeDatabase() {
     )
   `);
 
+  // Expense Types table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS expense_types (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Insert default expense types if table is empty
+  const expenseTypeCount = db.prepare('SELECT COUNT(*) as count FROM expense_types').get();
+  if (expenseTypeCount.count === 0) {
+    const insertExpenseType = db.prepare('INSERT INTO expense_types (name) VALUES (?)');
+    insertExpenseType.run('Petrol');
+    insertExpenseType.run('Puncture');
+    insertExpenseType.run('Service');
+    insertExpenseType.run('Other');
+  }
+
+  // Expenses table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      car_id INTEGER NOT NULL,
+      expense_type_id INTEGER NOT NULL,
+      amount REAL NOT NULL,
+      description TEXT,
+      expense_date DATE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (car_id) REFERENCES cars(id),
+      FOREIGN KEY (expense_type_id) REFERENCES expense_types(id)
+    )
+  `);
+
   // Route-Product Pricing table (route-specific pricing)
   db.exec(`
     CREATE TABLE IF NOT EXISTS route_product_pricing (

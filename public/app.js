@@ -4,6 +4,8 @@ let routes = [];
 let products = [];
 let cars = [];
 let entries = [];
+let expenseTypes = [];
+let expenses = [];
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
@@ -93,6 +95,26 @@ function initializeDateSelectors() {
 
   // Set default date in entry form
   document.getElementById('entryDate').valueAsDate = currentDate;
+
+  // Initialize expense filter date selectors
+  const expenseFilterMonth = document.getElementById('expenseFilterMonth');
+  const expenseFilterYear = document.getElementById('expenseFilterYear');
+
+  months.forEach((month, index) => {
+    const option = document.createElement('option');
+    option.value = index + 1;
+    option.textContent = month;
+    if (index + 1 === currentMonth) option.selected = true;
+    expenseFilterMonth.appendChild(option);
+  });
+
+  for (let year = currentYear - 2; year <= currentYear + 1; year++) {
+    const option = document.createElement('option');
+    option.value = year;
+    option.textContent = year;
+    if (year === currentYear) option.selected = true;
+    expenseFilterYear.appendChild(option);
+  }
 }
 
 // Tab switching
@@ -113,6 +135,7 @@ function showTab(tabName) {
     'routes': 'routesTab',
     'products': 'productsTab',
     'cars': 'carsTab',
+    'expenses': 'expensesTab',
     'pricing': 'pricingTab'
   };
 
@@ -124,6 +147,7 @@ function showTab(tabName) {
   if (tabName === 'routes') loadRoutes();
   if (tabName === 'products') loadProducts();
   if (tabName === 'cars') loadCars();
+  if (tabName === 'expenses') loadExpenses();
   if (tabName === 'pricing') loadPricingManagement();
 }
 
@@ -432,6 +456,219 @@ async function deleteCar(id) {
   }
 }
 
+// ============= EXPENSES MANAGEMENT =============
+
+async function loadExpenseTypes() {
+  try {
+    const res = await fetch('/api/expense-types');
+    expenseTypes = await res.json();
+    updateExpenseTypeDropdown();
+  } catch (err) {
+    console.error('Failed to load expense types:', err);
+  }
+}
+
+function updateExpenseTypeDropdown() {
+  // Update expense form dropdown
+  const formSelect = document.getElementById('expenseType');
+  formSelect.innerHTML = '<option value="">Select expense type</option>';
+  expenseTypes.forEach(type => {
+    const option = document.createElement('option');
+    option.value = type.id;
+    option.textContent = type.name;
+    formSelect.appendChild(option);
+  });
+
+  // Update filter dropdown
+  const filterSelect = document.getElementById('expenseFilterType');
+  filterSelect.innerHTML = '<option value="">All Types</option>';
+  expenseTypes.forEach(type => {
+    const option = document.createElement('option');
+    option.value = type.id;
+    option.textContent = type.name;
+    filterSelect.appendChild(option);
+  });
+}
+
+function updateExpenseCarDropdown() {
+  // Update expense form dropdown
+  const formSelect = document.getElementById('expenseCar');
+  formSelect.innerHTML = '<option value="">Select a car</option>';
+  cars.forEach(car => {
+    const option = document.createElement('option');
+    option.value = car.id;
+    option.textContent = car.car_number;
+    formSelect.appendChild(option);
+  });
+
+  // Update filter dropdown
+  const filterSelect = document.getElementById('expenseFilterCar');
+  filterSelect.innerHTML = '<option value="">All Cars</option>';
+  cars.forEach(car => {
+    const option = document.createElement('option');
+    option.value = car.id;
+    option.textContent = car.car_number;
+    filterSelect.appendChild(option);
+  });
+}
+
+async function loadExpenses() {
+  // Ensure we have expense types and cars loaded
+  if (expenseTypes.length === 0) await loadExpenseTypes();
+  if (cars.length === 0) await loadCars();
+
+  updateExpenseCarDropdown();
+  updateExpenseTypeDropdown();
+
+  try {
+    const carId = document.getElementById('expenseFilterCar').value;
+    const month = document.getElementById('expenseFilterMonth').value;
+    const year = document.getElementById('expenseFilterYear').value;
+    const typeId = document.getElementById('expenseFilterType').value;
+
+    let url = '/api/expenses?';
+    const params = [];
+    if (carId) params.push(`car_id=${carId}`);
+    if (month && year) {
+      params.push(`month=${month}`);
+      params.push(`year=${year}`);
+    }
+    if (typeId) params.push(`expense_type_id=${typeId}`);
+
+    url += params.join('&');
+
+    const res = await fetch(url);
+    expenses = await res.json();
+
+    // Update expenses table
+    const tbody = document.querySelector('#expensesTable tbody');
+    tbody.innerHTML = '';
+
+    expenses.forEach(expense => {
+      const row = tbody.insertRow();
+      row.innerHTML = `
+        <td>${expense.expense_date}</td>
+        <td>${expense.car_number}</td>
+        <td>${expense.expense_type_name}</td>
+        <td>Rs ${parseFloat(expense.amount).toLocaleString()}</td>
+        <td>${expense.description || '-'}</td>
+        <td>
+          <button class="btn-edit" onclick="editExpense(${expense.id})">Edit</button>
+          <button class="btn-danger" onclick="deleteExpense(${expense.id})">Delete</button>
+        </td>
+      `;
+    });
+
+    // Load expense statistics
+    loadExpenseStats();
+  } catch (err) {
+    console.error('Failed to load expenses:', err);
+  }
+}
+
+async function loadExpenseStats() {
+  try {
+    const carId = document.getElementById('expenseFilterCar').value;
+    const month = document.getElementById('expenseFilterMonth').value;
+    const year = document.getElementById('expenseFilterYear').value;
+
+    let url = '/api/stats/expenses?';
+    const params = [];
+    if (carId) params.push(`car_id=${carId}`);
+    if (month && year) {
+      params.push(`month=${month}`);
+      params.push(`year=${year}`);
+    }
+
+    url += params.join('&');
+
+    const res = await fetch(url);
+    const data = await res.json();
+
+    // Update summary cards
+    document.getElementById('expenseTotalCount').textContent = data.total_expenses || 0;
+    document.getElementById('expenseTotalAmount').textContent = `Rs ${(data.total_amount || 0).toLocaleString()}`;
+    document.getElementById('expenseAvgAmount').textContent = `Rs ${(data.avg_amount || 0).toLocaleString()}`;
+
+    // Update type breakdown table
+    const typeBody = document.querySelector('#expenseTypeBreakdownTable tbody');
+    typeBody.innerHTML = '';
+
+    if (data.type_breakdown && data.type_breakdown.length > 0) {
+      data.type_breakdown.forEach(item => {
+        const row = typeBody.insertRow();
+        row.innerHTML = `
+          <td>${item.name}</td>
+          <td>${item.count}</td>
+          <td>Rs ${parseFloat(item.total_amount).toLocaleString()}</td>
+        `;
+      });
+    } else {
+      typeBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #999;">No data available</td></tr>';
+    }
+
+    // Update car breakdown table
+    const carBody = document.querySelector('#expenseCarBreakdownTable tbody');
+    carBody.innerHTML = '';
+
+    if (data.car_breakdown && data.car_breakdown.length > 0) {
+      data.car_breakdown.forEach(item => {
+        const row = carBody.insertRow();
+        row.innerHTML = `
+          <td>${item.car_number}</td>
+          <td>${item.count}</td>
+          <td>Rs ${parseFloat(item.total_amount).toLocaleString()}</td>
+        `;
+      });
+    } else {
+      carBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #999;">No data available</td></tr>';
+    }
+  } catch (err) {
+    console.error('Failed to load expense stats:', err);
+  }
+}
+
+function showAddExpenseForm() {
+  document.getElementById('expenseFormContainer').classList.remove('hidden');
+  document.getElementById('expenseFormTitle').textContent = 'Add New Expense';
+  document.getElementById('expenseForm').reset();
+  document.getElementById('expenseId').value = '';
+  document.getElementById('expenseDate').valueAsDate = new Date();
+}
+
+function cancelExpenseForm() {
+  document.getElementById('expenseFormContainer').classList.add('hidden');
+}
+
+function editExpense(id) {
+  const expense = expenses.find(e => e.id === id);
+  if (!expense) return;
+
+  document.getElementById('expenseFormContainer').classList.remove('hidden');
+  document.getElementById('expenseFormTitle').textContent = 'Edit Expense';
+  document.getElementById('expenseId').value = expense.id;
+  document.getElementById('expenseCar').value = expense.car_id;
+  document.getElementById('expenseType').value = expense.expense_type_id;
+  document.getElementById('expenseAmount').value = expense.amount;
+  document.getElementById('expenseDescription').value = expense.description || '';
+  document.getElementById('expenseDate').value = expense.expense_date;
+}
+
+async function deleteExpense(id) {
+  if (!confirm('Are you sure you want to delete this expense?')) return;
+
+  try {
+    const res = await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      loadExpenses();
+    } else {
+      alert('Failed to delete expense');
+    }
+  } catch (err) {
+    alert('Failed to delete expense');
+  }
+}
+
 // ============= ENTRIES MANAGEMENT =============
 
 async function loadEntries() {
@@ -690,6 +927,39 @@ function setupFormListeners() {
       }
     } catch (err) {
       alert('Failed to save entry');
+    }
+  });
+
+  // Expense form
+  document.getElementById('expenseForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('expenseId').value;
+    const data = {
+      car_id: parseInt(document.getElementById('expenseCar').value),
+      expense_type_id: parseInt(document.getElementById('expenseType').value),
+      amount: parseFloat(document.getElementById('expenseAmount').value),
+      description: document.getElementById('expenseDescription').value,
+      expense_date: document.getElementById('expenseDate').value
+    };
+
+    try {
+      const url = id ? `/api/expenses/${id}` : '/api/expenses';
+      const method = id ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      if (res.ok) {
+        cancelExpenseForm();
+        loadExpenses();
+      } else {
+        const error = await res.json();
+        alert(error.error);
+      }
+    } catch (err) {
+      alert('Failed to save expense');
     }
   });
 

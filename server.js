@@ -186,6 +186,218 @@ app.delete('/api/cars/:id', requireAuth, (req, res) => {
   }
 });
 
+// ============= EXPENSE TYPES MANAGEMENT =============
+
+// Get all expense types
+app.get('/api/expense-types', requireAuth, (req, res) => {
+  const expenseTypes = db.prepare('SELECT * FROM expense_types ORDER BY name').all();
+  res.json(expenseTypes);
+});
+
+// Add expense type
+app.post('/api/expense-types', requireAuth, (req, res) => {
+  const { name } = req.body;
+  try {
+    const result = db.prepare('INSERT INTO expense_types (name) VALUES (?)').run(name);
+    res.json({ id: result.lastInsertRowid, name });
+  } catch (err) {
+    res.status(400).json({ error: 'Expense type already exists or invalid data' });
+  }
+});
+
+// Update expense type
+app.put('/api/expense-types/:id', requireAuth, (req, res) => {
+  const { name } = req.body;
+  try {
+    db.prepare('UPDATE expense_types SET name = ? WHERE id = ?').run(name, req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: 'Failed to update expense type' });
+  }
+});
+
+// Delete expense type
+app.delete('/api/expense-types/:id', requireAuth, (req, res) => {
+  try {
+    db.prepare('DELETE FROM expense_types WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: 'Cannot delete expense type (may have associated expenses)' });
+  }
+});
+
+// ============= EXPENSES MANAGEMENT =============
+
+// Get all expenses with details
+app.get('/api/expenses', requireAuth, (req, res) => {
+  const { car_id, month, year, expense_type_id } = req.query;
+
+  let query = `
+    SELECT
+      e.id,
+      e.car_id,
+      c.car_number,
+      e.expense_type_id,
+      et.name as expense_type_name,
+      e.amount,
+      e.description,
+      e.expense_date,
+      e.created_at
+    FROM expenses e
+    JOIN cars c ON e.car_id = c.id
+    JOIN expense_types et ON e.expense_type_id = et.id
+    WHERE 1=1
+  `;
+
+  const params = [];
+
+  if (car_id) {
+    query += ` AND e.car_id = ?`;
+    params.push(car_id);
+  }
+
+  if (month && year) {
+    query += ` AND strftime('%Y-%m', e.expense_date) = ?`;
+    params.push(`${year}-${month.padStart(2, '0')}`);
+  }
+
+  if (expense_type_id) {
+    query += ` AND e.expense_type_id = ?`;
+    params.push(expense_type_id);
+  }
+
+  query += ` ORDER BY e.expense_date DESC, e.created_at DESC`;
+
+  const expenses = db.prepare(query).all(...params);
+  res.json(expenses);
+});
+
+// Add expense
+app.post('/api/expenses', requireAuth, (req, res) => {
+  const { car_id, expense_type_id, amount, description, expense_date } = req.body;
+
+  try {
+    const result = db.prepare(
+      'INSERT INTO expenses (car_id, expense_type_id, amount, description, expense_date) VALUES (?, ?, ?, ?, ?)'
+    ).run(car_id, expense_type_id, parseFloat(amount), description || '', expense_date);
+
+    res.json({
+      id: result.lastInsertRowid,
+      car_id,
+      expense_type_id,
+      amount: parseFloat(amount),
+      description: description || '',
+      expense_date
+    });
+  } catch (err) {
+    res.status(400).json({ error: 'Failed to create expense' });
+  }
+});
+
+// Update expense
+app.put('/api/expenses/:id', requireAuth, (req, res) => {
+  const { car_id, expense_type_id, amount, description, expense_date } = req.body;
+
+  try {
+    db.prepare(
+      'UPDATE expenses SET car_id = ?, expense_type_id = ?, amount = ?, description = ?, expense_date = ? WHERE id = ?'
+    ).run(car_id, expense_type_id, parseFloat(amount), description || '', expense_date, req.params.id);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: 'Failed to update expense' });
+  }
+});
+
+// Delete expense
+app.delete('/api/expenses/:id', requireAuth, (req, res) => {
+  try {
+    db.prepare('DELETE FROM expenses WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: 'Failed to delete expense' });
+  }
+});
+
+// Get expense statistics
+app.get('/api/stats/expenses', requireAuth, (req, res) => {
+  const { car_id, month, year } = req.query;
+
+  let query = `
+    SELECT
+      COUNT(*) as total_expenses,
+      SUM(amount) as total_amount,
+      AVG(amount) as avg_amount
+    FROM expenses
+    WHERE 1=1
+  `;
+
+  const params = [];
+
+  if (car_id) {
+    query += ` AND car_id = ?`;
+    params.push(car_id);
+  }
+
+  if (month && year) {
+    query += ` AND strftime('%Y-%m', expense_date) = ?`;
+    params.push(`${year}-${month.padStart(2, '0')}`);
+  }
+
+  const stats = db.prepare(query).get(...params);
+
+  // Get breakdown by expense type
+  let typeQuery = `
+    SELECT
+      et.name,
+      COUNT(e.id) as count,
+      SUM(e.amount) as total_amount
+    FROM expenses e
+    JOIN expense_types et ON e.expense_type_id = et.id
+    WHERE 1=1
+  `;
+
+  if (car_id) {
+    typeQuery += ` AND e.car_id = ?`;
+  }
+
+  if (month && year) {
+    typeQuery += ` AND strftime('%Y-%m', e.expense_date) = ?`;
+  }
+
+  typeQuery += ` GROUP BY et.id, et.name ORDER BY total_amount DESC`;
+
+  const typeBreakdown = db.prepare(typeQuery).all(...params);
+
+  // Get breakdown by car
+  let carQuery = `
+    SELECT
+      c.car_number,
+      COUNT(e.id) as count,
+      SUM(e.amount) as total_amount
+    FROM expenses e
+    JOIN cars c ON e.car_id = c.id
+    WHERE 1=1
+  `;
+
+  const carParams = [];
+
+  if (month && year) {
+    carQuery += ` AND strftime('%Y-%m', e.expense_date) = ?`;
+    carParams.push(`${year}-${month.padStart(2, '0')}`);
+  }
+
+  carQuery += ` GROUP BY c.id, c.car_number ORDER BY total_amount DESC`;
+
+  const carBreakdown = db.prepare(carQuery).all(...carParams);
+
+  res.json({
+    ...stats,
+    type_breakdown: typeBreakdown,
+    car_breakdown: carBreakdown
+  });
+});
+
 // ============= ROUTE-PRODUCT PRICING MANAGEMENT =============
 
 // Get all pricing for a specific route
