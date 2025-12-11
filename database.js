@@ -39,6 +39,38 @@ function initializeDatabase() {
     )
   `);
 
+  // Cars table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS cars (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      car_number TEXT UNIQUE NOT NULL,
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Route-Product Pricing table (route-specific pricing)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS route_product_pricing (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      route_id INTEGER NOT NULL,
+      product_id INTEGER NOT NULL,
+      price_per_ton REAL NOT NULL,
+      is_available INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (route_id) REFERENCES routes(id) ON DELETE CASCADE,
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+      UNIQUE(route_id, product_id)
+    )
+  `);
+
+  // Create index for faster route-product pricing lookups
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_route_product_pricing_lookup
+    ON route_product_pricing(route_id, product_id)
+  `);
+
   // Entries table (delivery entries)
   db.exec(`
     CREATE TABLE IF NOT EXISTS entries (
@@ -54,6 +86,33 @@ function initializeDatabase() {
       FOREIGN KEY (product_id) REFERENCES products(id)
     )
   `);
+
+  // Add car_id column to entries table if it doesn't exist
+  const entriesColumns = db.prepare("PRAGMA table_info(entries)").all();
+  const hasCarId = entriesColumns.some(col => col.name === 'car_id');
+
+  if (!hasCarId) {
+    db.exec(`ALTER TABLE entries ADD COLUMN car_id INTEGER REFERENCES cars(id)`);
+  }
+
+  // Migrate existing car numbers to cars table
+  const existingCarNumbers = db.prepare('SELECT DISTINCT car_number FROM entries WHERE car_number IS NOT NULL').all();
+
+  for (const row of existingCarNumbers) {
+    // Insert car if it doesn't exist
+    const carExists = db.prepare('SELECT id FROM cars WHERE car_number = ?').get(row.car_number);
+    let carId;
+
+    if (!carExists) {
+      const result = db.prepare('INSERT INTO cars (car_number) VALUES (?)').run(row.car_number);
+      carId = result.lastInsertRowid;
+    } else {
+      carId = carExists.id;
+    }
+
+    // Update entries with car_id
+    db.prepare('UPDATE entries SET car_id = ? WHERE car_number = ? AND car_id IS NULL').run(carId, row.car_number);
+  }
 
   // Create default admin user if not exists
   const adminExists = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');

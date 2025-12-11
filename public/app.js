@@ -2,6 +2,7 @@
 let currentTab = 'dashboard';
 let routes = [];
 let products = [];
+let cars = [];
 let entries = [];
 
 // Initialize app
@@ -110,7 +111,9 @@ function showTab(tabName) {
     'dashboard': 'dashboardTab',
     'entries': 'entriesTab',
     'routes': 'routesTab',
-    'products': 'productsTab'
+    'products': 'productsTab',
+    'cars': 'carsTab',
+    'pricing': 'pricingTab'
   };
 
   document.getElementById(tabMap[tabName]).classList.remove('hidden');
@@ -120,6 +123,8 @@ function showTab(tabName) {
   if (tabName === 'entries') loadEntries();
   if (tabName === 'routes') loadRoutes();
   if (tabName === 'products') loadProducts();
+  if (tabName === 'cars') loadCars();
+  if (tabName === 'pricing') loadPricingManagement();
 }
 
 // Load all data
@@ -127,6 +132,7 @@ function loadAllData() {
   loadStats();
   loadRoutes();
   loadProducts();
+  loadCars();
   loadEntries();
 }
 
@@ -276,15 +282,37 @@ async function loadProducts() {
   }
 }
 
-function updateProductDropdown() {
+async function updateProductDropdown(routeId = null) {
   const select = document.getElementById('entryProduct');
   select.innerHTML = '<option value="">Select a product</option>';
-  products.forEach(product => {
+
+  if (!routeId) {
+    // No route selected - show placeholder
     const option = document.createElement('option');
-    option.value = product.id;
-    option.textContent = `${product.name} (Rs ${product.price_per_ton}/ton)`;
+    option.value = '';
+    option.textContent = 'Please select a route first';
+    option.disabled = true;
     select.appendChild(option);
-  });
+    return;
+  }
+
+  try {
+    // Fetch only available products for selected route
+    const res = await fetch(`/api/products/available/${routeId}`);
+    const availableProducts = await res.json();
+
+    availableProducts.forEach(product => {
+      const option = document.createElement('option');
+      option.value = product.id;
+      const priceLabel = product.effective_price !== product.base_price
+        ? `Rs ${product.effective_price}/ton (route price)`
+        : `Rs ${product.base_price}/ton`;
+      option.textContent = `${product.name} (${priceLabel})`;
+      select.appendChild(option);
+    });
+  } catch (err) {
+    console.error('Failed to load available products:', err);
+  }
 }
 
 function showAddProductForm() {
@@ -322,6 +350,85 @@ async function deleteProduct(id) {
     }
   } catch (err) {
     alert('Failed to delete product');
+  }
+}
+
+// ============= CARS MANAGEMENT =============
+
+async function loadCars() {
+  try {
+    const res = await fetch('/api/cars');
+    cars = await res.json();
+
+    // Update cars table
+    const tbody = document.querySelector('#carsTable tbody');
+    tbody.innerHTML = '';
+
+    cars.forEach(car => {
+      const row = tbody.insertRow();
+      row.innerHTML = `
+        <td>${car.car_number}</td>
+        <td>${car.description || '-'}</td>
+        <td class="actions">
+          <button onclick="editCar(${car.id})" class="btn-small">Edit</button>
+          <button onclick="deleteCar(${car.id})" class="btn-small btn-danger">Delete</button>
+        </td>
+      `;
+    });
+
+    // Update car dropdown in entry form
+    updateCarDropdown();
+  } catch (err) {
+    console.error('Failed to load cars:', err);
+  }
+}
+
+function updateCarDropdown() {
+  const select = document.getElementById('entryCarNumber');
+  select.innerHTML = '<option value="">Select a car</option>';
+  cars.forEach(car => {
+    const option = document.createElement('option');
+    option.value = car.id;
+    option.textContent = car.car_number;
+    select.appendChild(option);
+  });
+}
+
+function showAddCarForm() {
+  document.getElementById('carFormContainer').classList.remove('hidden');
+  document.getElementById('carFormTitle').textContent = 'Add New Car';
+  document.getElementById('carForm').reset();
+  document.getElementById('carId').value = '';
+}
+
+function cancelCarForm() {
+  document.getElementById('carFormContainer').classList.add('hidden');
+}
+
+function editCar(id) {
+  const car = cars.find(c => c.id === id);
+  if (!car) return;
+
+  document.getElementById('carFormContainer').classList.remove('hidden');
+  document.getElementById('carFormTitle').textContent = 'Edit Car';
+  document.getElementById('carId').value = car.id;
+  document.getElementById('carNumber').value = car.car_number;
+  document.getElementById('carDescription').value = car.description || '';
+}
+
+async function deleteCar(id) {
+  if (!confirm('Are you sure you want to delete this car?')) return;
+
+  try {
+    const res = await fetch(`/api/cars/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      loadCars();
+    } else {
+      const data = await res.json();
+      alert(data.error);
+    }
+  } catch (err) {
+    alert('Failed to delete car');
   }
 }
 
@@ -380,9 +487,15 @@ function editEntry(id) {
   document.getElementById('entryFormContainer').classList.remove('hidden');
   document.getElementById('entryFormTitle').textContent = 'Edit Entry';
   document.getElementById('entryId').value = entry.id;
-  document.getElementById('entryCarNumber').value = entry.car_number;
+  document.getElementById('entryCarNumber').value = entry.car_id || '';
   document.getElementById('entryDate').value = entry.entry_date;
   document.getElementById('entryRoute').value = route ? route.id : '';
+
+  // Update product dropdown for selected route
+  if (route) {
+    updateProductDropdown(route.id);
+  }
+
   document.getElementById('entryProduct').value = product ? product.id : '';
   document.getElementById('entryQuantity').value = entry.quantity_tons;
   document.getElementById('entryCalculatedRate').value = `Rs ${entry.calculated_rate.toLocaleString()}`;
@@ -405,15 +518,24 @@ async function deleteEntry(id) {
 }
 
 // Calculate rate preview when quantity or product changes
-function updateRatePreview() {
+async function updateRatePreview() {
   const productId = document.getElementById('entryProduct').value;
+  const routeId = document.getElementById('entryRoute').value;
   const quantity = parseFloat(document.getElementById('entryQuantity').value) || 0;
 
-  if (productId && quantity > 0) {
-    const product = products.find(p => p.id === parseInt(productId));
-    if (product) {
-      const rate = quantity * product.price_per_ton;
-      document.getElementById('entryCalculatedRate').value = `Rs ${rate.toLocaleString()}`;
+  if (productId && routeId && quantity > 0) {
+    try {
+      const res = await fetch(`/api/products/available/${routeId}`);
+      const availableProducts = await res.json();
+      const product = availableProducts.find(p => p.id === parseInt(productId));
+
+      if (product) {
+        const rate = quantity * product.effective_price;
+        document.getElementById('entryCalculatedRate').value = `Rs ${rate.toLocaleString()}`;
+      }
+    } catch (err) {
+      console.error('Failed to calculate rate:', err);
+      document.getElementById('entryCalculatedRate').value = '';
     }
   } else {
     document.getElementById('entryCalculatedRate').value = '';
@@ -442,8 +564,25 @@ function setupFormListeners() {
       });
 
       if (res.ok) {
-        cancelRouteForm();
-        loadRoutes();
+        const result = await res.json();
+
+        if (!id) {
+          // New route - optionally configure pricing
+          const configure = confirm(
+            `Route "${data.name}" created. Would you like to configure product pricing for this route now?\n\n` +
+            `Click OK to set prices, or Cancel to use default base prices.`
+          );
+
+          if (configure) {
+            await showRoutePricingConfiguration(result.id, data.name);
+          } else {
+            cancelRouteForm();
+            loadRoutes();
+          }
+        } else {
+          cancelRouteForm();
+          loadRoutes();
+        }
       } else {
         const error = await res.json();
         alert(error.error);
@@ -472,8 +611,15 @@ function setupFormListeners() {
       });
 
       if (res.ok) {
-        cancelProductForm();
-        loadProducts();
+        const result = await res.json();
+
+        if (!id) {
+          // New product - show pricing configuration
+          await showProductPricingConfiguration(result.id, data.name, data.price_per_ton);
+        } else {
+          cancelProductForm();
+          loadProducts();
+        }
       } else {
         const error = await res.json();
         alert(error.error);
@@ -483,12 +629,42 @@ function setupFormListeners() {
     }
   });
 
+  // Car form
+  document.getElementById('carForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('carId').value;
+    const data = {
+      car_number: document.getElementById('carNumber').value,
+      description: document.getElementById('carDescription').value
+    };
+
+    try {
+      const url = id ? `/api/cars/${id}` : '/api/cars';
+      const method = id ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      if (res.ok) {
+        cancelCarForm();
+        loadCars();
+      } else {
+        const error = await res.json();
+        alert(error.error);
+      }
+    } catch (err) {
+      alert('Failed to save car');
+    }
+  });
+
   // Entry form
   document.getElementById('entryForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const id = document.getElementById('entryId').value;
     const data = {
-      car_number: document.getElementById('entryCarNumber').value,
+      car_id: parseInt(document.getElementById('entryCarNumber').value),
       route_id: parseInt(document.getElementById('entryRoute').value),
       product_id: parseInt(document.getElementById('entryProduct').value),
       quantity_tons: parseFloat(document.getElementById('entryQuantity').value),
@@ -517,7 +693,323 @@ function setupFormListeners() {
     }
   });
 
+  // Route change listener - update product dropdown when route changes
+  document.getElementById('entryRoute').addEventListener('change', (e) => {
+    const routeId = e.target.value;
+    updateProductDropdown(routeId);
+    // Reset product selection and rate when route changes
+    document.getElementById('entryProduct').value = '';
+    document.getElementById('entryCalculatedRate').value = '';
+  });
+
   // Real-time rate calculation
   document.getElementById('entryProduct').addEventListener('change', updateRatePreview);
   document.getElementById('entryQuantity').addEventListener('input', updateRatePreview);
+}
+
+// ============= PRICING CONFIGURATION FUNCTIONS =============
+
+async function showProductPricingConfiguration(productId, productName, basePrice) {
+  // Load all routes
+  const routesRes = await fetch('/api/routes');
+  const allRoutes = await routesRes.json();
+
+  if (allRoutes.length === 0) {
+    // No routes exist yet - skip pricing step
+    cancelProductForm();
+    loadProducts();
+    return;
+  }
+
+  // Show pricing modal
+  const modal = document.getElementById('pricingConfigModal');
+  document.getElementById('pricingModalTitle').textContent = `Set Pricing for "${productName}"`;
+  document.getElementById('pricingModalSubtitle').textContent = `Base price: Rs ${basePrice}/ton`;
+
+  const tbody = document.getElementById('pricingConfigTable').getElementsByTagName('tbody')[0];
+  tbody.innerHTML = '';
+
+  allRoutes.forEach(route => {
+    const row = tbody.insertRow();
+    row.innerHTML = `
+      <td>${route.name}</td>
+      <td>
+        <input type="number"
+               class="pricing-input"
+               data-route-id="${route.id}"
+               data-product-id="${productId}"
+               step="0.01"
+               placeholder="${basePrice}"
+               value="${basePrice}">
+      </td>
+      <td>
+        <input type="checkbox"
+               class="availability-checkbox"
+               data-route-id="${route.id}"
+               data-product-id="${productId}"
+               checked>
+      </td>
+    `;
+  });
+
+  modal.classList.remove('hidden');
+  modal.dataset.productId = productId;
+}
+
+async function showRoutePricingConfiguration(routeId, routeName) {
+  // Load all products
+  const productsRes = await fetch('/api/products');
+  const allProducts = await productsRes.json();
+
+  if (allProducts.length === 0) {
+    cancelRouteForm();
+    loadRoutes();
+    return;
+  }
+
+  const modal = document.getElementById('pricingConfigModal');
+  document.getElementById('pricingModalTitle').textContent = `Set Pricing for Route "${routeName}"`;
+  document.getElementById('pricingModalSubtitle').textContent = `Configure which products are available and their prices`;
+
+  const tbody = document.getElementById('pricingConfigTable').getElementsByTagName('tbody')[0];
+  tbody.innerHTML = '';
+
+  allProducts.forEach(product => {
+    const row = tbody.insertRow();
+    row.innerHTML = `
+      <td>${product.name}</td>
+      <td>
+        <input type="number"
+               class="pricing-input"
+               data-route-id="${routeId}"
+               data-product-id="${product.id}"
+               step="0.01"
+               placeholder="${product.price_per_ton}"
+               value="${product.price_per_ton}">
+      </td>
+      <td>
+        <input type="checkbox"
+               class="availability-checkbox"
+               data-route-id="${routeId}"
+               data-product-id="${product.id}"
+               checked>
+      </td>
+    `;
+  });
+
+  modal.classList.remove('hidden');
+  modal.dataset.isRouteConfig = 'true';
+}
+
+async function savePricingConfiguration() {
+  const modal = document.getElementById('pricingConfigModal');
+  const isRouteConfig = modal.dataset.isRouteConfig === 'true';
+
+  // Collect all pricing data
+  const pricingData = [];
+  const rows = document.getElementById('pricingConfigTable').getElementsByTagName('tbody')[0].rows;
+
+  for (let row of rows) {
+    const priceInput = row.querySelector('.pricing-input');
+    const availabilityCheckbox = row.querySelector('.availability-checkbox');
+
+    pricingData.push({
+      product_id: parseInt(priceInput.dataset.productId),
+      route_id: parseInt(priceInput.dataset.routeId),
+      price_per_ton: parseFloat(priceInput.value),
+      is_available: availabilityCheckbox.checked
+    });
+  }
+
+  // Save pricing for each route-product combination
+  try {
+    for (let pricing of pricingData) {
+      await fetch(`/api/route-product-pricing/${pricing.route_id}/${pricing.product_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          price_per_ton: pricing.price_per_ton,
+          is_available: pricing.is_available
+        })
+      });
+    }
+
+    closePricingModal();
+
+    if (isRouteConfig) {
+      cancelRouteForm();
+      loadRoutes();
+    } else {
+      cancelProductForm();
+      loadProducts();
+    }
+  } catch (err) {
+    alert('Failed to save pricing configuration');
+  }
+}
+
+function closePricingModal() {
+  const modal = document.getElementById('pricingConfigModal');
+  modal.classList.add('hidden');
+  modal.dataset.isRouteConfig = 'false';
+}
+
+// ============= PRICING MANAGEMENT TAB FUNCTIONS =============
+
+async function loadPricingManagement() {
+  const viewMode = document.getElementById('pricingViewMode').value;
+  const viewSelect = document.getElementById('pricingViewId');
+  viewSelect.innerHTML = '<option value="">Select...</option>';
+
+  if (viewMode === 'route') {
+    routes.forEach(route => {
+      const option = document.createElement('option');
+      option.value = route.id;
+      option.textContent = route.name;
+      viewSelect.appendChild(option);
+    });
+  } else {
+    products.forEach(product => {
+      const option = document.createElement('option');
+      option.value = product.id;
+      option.textContent = product.name;
+      viewSelect.appendChild(option);
+    });
+  }
+
+  // Clear table
+  document.getElementById('pricingTableHead').innerHTML = '';
+  document.getElementById('pricingTableBody').innerHTML = '';
+}
+
+async function loadPricingDetails() {
+  const viewMode = document.getElementById('pricingViewMode').value;
+  const viewId = document.getElementById('pricingViewId').value;
+
+  if (!viewId) return;
+
+  const thead = document.getElementById('pricingTableHead');
+  const tbody = document.getElementById('pricingTableBody');
+
+  if (viewMode === 'route') {
+    // Show all products for this route
+    thead.innerHTML = `
+      <tr>
+        <th>Product</th>
+        <th>Base Price</th>
+        <th>Route Price</th>
+        <th>Available</th>
+      </tr>
+    `;
+
+    try {
+      const res = await fetch(`/api/route-product-pricing/${viewId}`);
+      const pricing = await res.json();
+
+      tbody.innerHTML = '';
+      pricing.forEach(item => {
+        const row = tbody.insertRow();
+        row.innerHTML = `
+          <td>${item.product_name}</td>
+          <td>Rs ${item.base_price.toLocaleString()}</td>
+          <td>
+            <input type="number"
+                   class="pricing-edit-input"
+                   data-route-id="${viewId}"
+                   data-product-id="${item.product_id}"
+                   step="0.01"
+                   value="${item.price_per_ton || item.base_price}">
+          </td>
+          <td>
+            <input type="checkbox"
+                   class="availability-edit-checkbox"
+                   data-route-id="${viewId}"
+                   data-product-id="${item.product_id}"
+                   ${(item.is_available === null || item.is_available === 1) ? 'checked' : ''}>
+          </td>
+        `;
+      });
+    } catch (err) {
+      console.error('Failed to load pricing:', err);
+    }
+  } else {
+    // Show all routes for this product
+    thead.innerHTML = `
+      <tr>
+        <th>Route</th>
+        <th>Base Price</th>
+        <th>Route Price</th>
+        <th>Available</th>
+      </tr>
+    `;
+
+    try {
+      // Fetch pricing across all routes for this product
+      const allPricing = [];
+      for (const route of routes) {
+        const res = await fetch(`/api/route-product-pricing/${route.id}`);
+        const routePricing = await res.json();
+        const productPricing = routePricing.find(p => p.product_id === parseInt(viewId));
+        if (productPricing) {
+          allPricing.push({
+            route_id: route.id,
+            route_name: route.name,
+            ...productPricing
+          });
+        }
+      }
+
+      tbody.innerHTML = '';
+      allPricing.forEach(item => {
+        const row = tbody.insertRow();
+        row.innerHTML = `
+          <td>${item.route_name}</td>
+          <td>Rs ${item.base_price.toLocaleString()}</td>
+          <td>
+            <input type="number"
+                   class="pricing-edit-input"
+                   data-route-id="${item.route_id}"
+                   data-product-id="${viewId}"
+                   step="0.01"
+                   value="${item.price_per_ton || item.base_price}">
+          </td>
+          <td>
+            <input type="checkbox"
+                   class="availability-edit-checkbox"
+                   data-route-id="${item.route_id}"
+                   data-product-id="${viewId}"
+                   ${(item.is_available === null || item.is_available === 1) ? 'checked' : ''}>
+          </td>
+        `;
+      });
+    } catch (err) {
+      console.error('Failed to load pricing:', err);
+    }
+  }
+}
+
+async function savePricingChanges() {
+  const inputs = document.querySelectorAll('.pricing-edit-input');
+  const checkboxes = document.querySelectorAll('.availability-edit-checkbox');
+
+  try {
+    for (let i = 0; i < inputs.length; i++) {
+      const input = inputs[i];
+      const checkbox = checkboxes[i];
+
+      await fetch(`/api/route-product-pricing/${input.dataset.routeId}/${input.dataset.productId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          price_per_ton: parseFloat(input.value),
+          is_available: checkbox.checked
+        })
+      });
+    }
+
+    alert('Pricing updated successfully');
+    loadPricingDetails();
+  } catch (err) {
+    alert('Failed to save pricing changes');
+  }
 }

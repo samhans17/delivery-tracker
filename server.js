@@ -140,6 +140,146 @@ app.delete('/api/products/:id', requireAuth, (req, res) => {
   }
 });
 
+// ============= CARS MANAGEMENT =============
+
+// Get all cars
+app.get('/api/cars', requireAuth, (req, res) => {
+  const cars = db.prepare('SELECT * FROM cars ORDER BY car_number').all();
+  res.json(cars);
+});
+
+// Add car
+app.post('/api/cars', requireAuth, (req, res) => {
+  const { car_number, description } = req.body;
+
+  try {
+    const result = db.prepare('INSERT INTO cars (car_number, description) VALUES (?, ?)').run(car_number, description || '');
+    res.json({
+      id: result.lastInsertRowid,
+      car_number,
+      description: description || ''
+    });
+  } catch (err) {
+    res.status(400).json({ error: 'Car already exists or invalid data' });
+  }
+});
+
+// Update car
+app.put('/api/cars/:id', requireAuth, (req, res) => {
+  const { car_number, description } = req.body;
+
+  try {
+    db.prepare('UPDATE cars SET car_number = ?, description = ? WHERE id = ?').run(car_number, description || '', req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: 'Failed to update car' });
+  }
+});
+
+// Delete car
+app.delete('/api/cars/:id', requireAuth, (req, res) => {
+  try {
+    db.prepare('DELETE FROM cars WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: 'Cannot delete car (may have associated entries)' });
+  }
+});
+
+// ============= ROUTE-PRODUCT PRICING MANAGEMENT =============
+
+// Get all pricing for a specific route
+app.get('/api/route-product-pricing/:routeId', requireAuth, (req, res) => {
+  const routeId = req.params.routeId;
+
+  const pricing = db.prepare(`
+    SELECT
+      p.id as product_id,
+      p.name as product_name,
+      p.price_per_ton as base_price,
+      rpp.price_per_ton,
+      rpp.is_available,
+      rpp.id as pricing_id
+    FROM products p
+    LEFT JOIN route_product_pricing rpp
+      ON p.id = rpp.product_id AND rpp.route_id = ?
+    ORDER BY p.name
+  `).all(routeId);
+
+  res.json(pricing);
+});
+
+// Get available products for a route (with effective pricing)
+app.get('/api/products/available/:routeId', requireAuth, (req, res) => {
+  const routeId = req.params.routeId;
+
+  const products = db.prepare(`
+    SELECT
+      p.id,
+      p.name,
+      p.price_per_ton as base_price,
+      COALESCE(rpp.price_per_ton, p.price_per_ton) as effective_price,
+      COALESCE(rpp.is_available, 1) as is_available
+    FROM products p
+    LEFT JOIN route_product_pricing rpp
+      ON p.id = rpp.product_id AND rpp.route_id = ?
+    WHERE COALESCE(rpp.is_available, 1) = 1
+    ORDER BY p.name
+  `).all(routeId);
+
+  res.json(products);
+});
+
+// Update individual route-product pricing
+app.put('/api/route-product-pricing/:routeId/:productId', requireAuth, (req, res) => {
+  const { routeId, productId } = req.params;
+  const { price_per_ton, is_available } = req.body;
+
+  try {
+    db.prepare(`
+      INSERT INTO route_product_pricing (route_id, product_id, price_per_ton, is_available, updated_at)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(route_id, product_id)
+      DO UPDATE SET
+        price_per_ton = excluded.price_per_ton,
+        is_available = excluded.is_available,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(routeId, productId, parseFloat(price_per_ton), is_available ? 1 : 0);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: 'Failed to update pricing' });
+  }
+});
+
+// Bulk update pricing for multiple products
+app.post('/api/route-product-pricing/bulk', requireAuth, (req, res) => {
+  const { route_id, pricing } = req.body;
+
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO route_product_pricing (route_id, product_id, price_per_ton, is_available, updated_at)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(route_id, product_id)
+      DO UPDATE SET
+        price_per_ton = excluded.price_per_ton,
+        is_available = excluded.is_available,
+        updated_at = CURRENT_TIMESTAMP
+    `);
+
+    const transaction = db.transaction((pricingList) => {
+      for (const item of pricingList) {
+        stmt.run(route_id, item.product_id, parseFloat(item.price_per_ton), item.is_available ? 1 : 0);
+      }
+    });
+
+    transaction(pricing);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: 'Failed to save pricing' });
+  }
+});
+
 // ============= ENTRIES MANAGEMENT =============
 
 // Get all entries with details
@@ -149,7 +289,8 @@ app.get('/api/entries', requireAuth, (req, res) => {
   let query = `
     SELECT
       e.id,
-      e.car_number,
+      e.car_id,
+      COALESCE(c.car_number, e.car_number) as car_number,
       e.quantity_tons,
       e.calculated_rate,
       e.entry_date,
@@ -160,6 +301,7 @@ app.get('/api/entries', requireAuth, (req, res) => {
     FROM entries e
     JOIN routes r ON e.route_id = r.id
     JOIN products p ON e.product_id = p.id
+    LEFT JOIN cars c ON e.car_id = c.id
   `;
 
   const params = [];
@@ -176,25 +318,45 @@ app.get('/api/entries', requireAuth, (req, res) => {
 
 // Add entry
 app.post('/api/entries', requireAuth, (req, res) => {
-  const { car_number, route_id, product_id, quantity_tons, entry_date } = req.body;
+  const { car_id, route_id, product_id, quantity_tons, entry_date } = req.body;
 
-  // Get product price
-  const product = db.prepare('SELECT price_per_ton FROM products WHERE id = ?').get(product_id);
-  if (!product) {
+  // Get car number for the entry
+  const car = db.prepare('SELECT car_number FROM cars WHERE id = ?').get(car_id);
+  if (!car) {
+    return res.status(400).json({ error: 'Invalid car' });
+  }
+
+  // Get route-specific price or fallback to base price
+  const pricing = db.prepare(`
+    SELECT
+      COALESCE(rpp.price_per_ton, p.price_per_ton) as price_per_ton,
+      COALESCE(rpp.is_available, 1) as is_available
+    FROM products p
+    LEFT JOIN route_product_pricing rpp
+      ON p.id = rpp.product_id AND rpp.route_id = ?
+    WHERE p.id = ?
+  `).get(route_id, product_id);
+
+  if (!pricing) {
     return res.status(400).json({ error: 'Invalid product' });
   }
 
-  // Calculate rate
-  const calculated_rate = parseFloat(quantity_tons) * product.price_per_ton;
+  if (!pricing.is_available) {
+    return res.status(400).json({ error: 'Product not available for this route' });
+  }
+
+  // Calculate rate with route-specific price
+  const calculated_rate = parseFloat(quantity_tons) * pricing.price_per_ton;
 
   try {
     const result = db.prepare(
-      'INSERT INTO entries (car_number, route_id, product_id, quantity_tons, calculated_rate, entry_date) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(car_number, route_id, product_id, parseFloat(quantity_tons), calculated_rate, entry_date);
+      'INSERT INTO entries (car_id, car_number, route_id, product_id, quantity_tons, calculated_rate, entry_date) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(car_id, car.car_number, route_id, product_id, parseFloat(quantity_tons), calculated_rate, entry_date);
 
     res.json({
       id: result.lastInsertRowid,
-      car_number,
+      car_id,
+      car_number: car.car_number,
       route_id,
       product_id,
       quantity_tons: parseFloat(quantity_tons),
@@ -208,21 +370,40 @@ app.post('/api/entries', requireAuth, (req, res) => {
 
 // Update entry
 app.put('/api/entries/:id', requireAuth, (req, res) => {
-  const { car_number, route_id, product_id, quantity_tons, entry_date } = req.body;
+  const { car_id, route_id, product_id, quantity_tons, entry_date } = req.body;
 
-  // Get product price
-  const product = db.prepare('SELECT price_per_ton FROM products WHERE id = ?').get(product_id);
-  if (!product) {
+  // Get car number for the entry
+  const car = db.prepare('SELECT car_number FROM cars WHERE id = ?').get(car_id);
+  if (!car) {
+    return res.status(400).json({ error: 'Invalid car' });
+  }
+
+  // Get route-specific price or fallback to base price
+  const pricing = db.prepare(`
+    SELECT
+      COALESCE(rpp.price_per_ton, p.price_per_ton) as price_per_ton,
+      COALESCE(rpp.is_available, 1) as is_available
+    FROM products p
+    LEFT JOIN route_product_pricing rpp
+      ON p.id = rpp.product_id AND rpp.route_id = ?
+    WHERE p.id = ?
+  `).get(route_id, product_id);
+
+  if (!pricing) {
     return res.status(400).json({ error: 'Invalid product' });
   }
 
-  // Recalculate rate
-  const calculated_rate = parseFloat(quantity_tons) * product.price_per_ton;
+  if (!pricing.is_available) {
+    return res.status(400).json({ error: 'Product not available for this route' });
+  }
+
+  // Recalculate rate with route-specific price
+  const calculated_rate = parseFloat(quantity_tons) * pricing.price_per_ton;
 
   try {
     db.prepare(
-      'UPDATE entries SET car_number = ?, route_id = ?, product_id = ?, quantity_tons = ?, calculated_rate = ?, entry_date = ? WHERE id = ?'
-    ).run(car_number, route_id, product_id, parseFloat(quantity_tons), calculated_rate, entry_date, req.params.id);
+      'UPDATE entries SET car_id = ?, car_number = ?, route_id = ?, product_id = ?, quantity_tons = ?, calculated_rate = ?, entry_date = ? WHERE id = ?'
+    ).run(car_id, car.car_number, route_id, product_id, parseFloat(quantity_tons), calculated_rate, entry_date, req.params.id);
 
     res.json({ success: true });
   } catch (err) {

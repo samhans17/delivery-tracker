@@ -37,6 +37,8 @@
         <button class="tab" onclick="showTab('entries')">📝 Entries</button>
         <button class="tab" onclick="showTab('routes')">🛣️ Routes</button>
         <button class="tab" onclick="showTab('products')">📦 Products</button>
+        <button class="tab" onclick="showTab('cars')">🚗 Cars</button>
+        <button class="tab" onclick="showTab('pricing')">💰 Pricing</button>
       </div>
 
       <!-- Dashboard Tab -->
@@ -98,7 +100,7 @@
             <div class="form-row">
               <div class="form-group">
                 <label>Car Number</label>
-                <input type="text" id="entryCarNumber" required placeholder="e.g., ABC-123">
+                <select id="entryCarNumber" required></select>
               </div>
               <div class="form-group">
                 <label>Entry Date</label>
@@ -232,6 +234,104 @@
             </thead>
             <tbody></tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- Cars Tab -->
+      <div id="carsTab" class="tab-content hidden">
+        <div class="section-header">
+          <h2>Cars Management</h2>
+          <button onclick="showAddCarForm()" class="btn-primary">+ Add Car</button>
+        </div>
+
+        <!-- Add/Edit Car Form -->
+        <div id="carFormContainer" class="form-container hidden">
+          <h3 id="carFormTitle">Add New Car</h3>
+          <form id="carForm">
+            <input type="hidden" id="carId">
+            <div class="form-group">
+              <label for="carNumber">Car Number</label>
+              <input type="text" id="carNumber" required placeholder="e.g., ABC-123">
+            </div>
+            <div class="form-group">
+              <label for="carDescription">Description (Optional)</label>
+              <textarea id="carDescription" rows="2" placeholder="e.g., Owner name, capacity, etc."></textarea>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn-primary">Save Car</button>
+              <button type="button" onclick="cancelCarForm()" class="btn-secondary">Cancel</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Cars List -->
+        <div class="table-container">
+          <table id="carsTable">
+            <thead>
+              <tr>
+                <th>Car Number</th>
+                <th>Description</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Pricing Management Tab -->
+      <div id="pricingTab" class="tab-content hidden">
+        <div class="section-header">
+          <h2>Route-Product Pricing Management</h2>
+        </div>
+
+        <div class="pricing-filters">
+          <label>
+            View by:
+            <select id="pricingViewMode" onchange="loadPricingManagement()">
+              <option value="route">Route</option>
+              <option value="product">Product</option>
+            </select>
+          </label>
+          <label>
+            Select:
+            <select id="pricingViewId" onchange="loadPricingDetails()"></select>
+          </label>
+        </div>
+
+        <div class="pricing-table-container">
+          <table id="pricingManagementTable">
+            <thead id="pricingTableHead"></thead>
+            <tbody id="pricingTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="pricing-actions">
+          <button onclick="savePricingChanges()" class="btn-primary">Save Changes</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pricing Configuration Modal -->
+    <div id="pricingConfigModal" class="modal hidden">
+      <div class="modal-content">
+        <h3 id="pricingModalTitle">Configure Pricing</h3>
+        <p id="pricingModalSubtitle" class="modal-subtitle"></p>
+
+        <table id="pricingConfigTable">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Price per Ton (Rs)</th>
+              <th>Available</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <div class="modal-actions">
+          <button onclick="savePricingConfiguration()" class="btn-primary">Save Pricing</button>
+          <button onclick="closePricingModal()" class="btn-secondary">Cancel</button>
         </div>
       </div>
     </div>
