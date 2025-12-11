@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   checkAuth();
   initializeDateSelectors();
   setupFormListeners();
+  setupDropdownListeners();
 });
 
 // Check authentication status
@@ -132,11 +133,8 @@ function showTab(tabName) {
   const tabMap = {
     'dashboard': 'dashboardTab',
     'entries': 'entriesTab',
-    'routes': 'routesTab',
-    'products': 'productsTab',
-    'cars': 'carsTab',
     'expenses': 'expensesTab',
-    'pricing': 'pricingTab'
+    'settings': 'settingsTab'
   };
 
   document.getElementById(tabMap[tabName]).classList.remove('hidden');
@@ -144,11 +142,71 @@ function showTab(tabName) {
   // Load data for the tab
   if (tabName === 'dashboard') loadStats();
   if (tabName === 'entries') loadEntries();
-  if (tabName === 'routes') loadRoutes();
-  if (tabName === 'products') loadProducts();
-  if (tabName === 'cars') loadCars();
   if (tabName === 'expenses') loadExpenses();
-  if (tabName === 'pricing') loadPricingManagement();
+  if (tabName === 'settings') {
+    // Show routes sub-tab by default
+    showSettingsSubTab('routes');
+  }
+}
+
+// Settings sub-tab switching (called from dropdown menu)
+function showSettingsSubTab(subTabName) {
+  // First, switch to settings tab
+  currentTab = 'settings';
+
+  // Update main tab buttons
+  document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+
+  // Hide all main tab contents
+  document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
+
+  // Show settings tab
+  document.getElementById('settingsTab').classList.remove('hidden');
+
+  // Update sub-tab buttons
+  document.querySelectorAll('.settings-tab').forEach(tab => tab.classList.remove('active'));
+  const targetButton = Array.from(document.querySelectorAll('.settings-tab')).find(btn =>
+    btn.textContent.toLowerCase().includes(subTabName)
+  );
+  if (targetButton) targetButton.classList.add('active');
+
+  // Hide all sub-tab contents
+  document.querySelectorAll('.settings-subtab-content').forEach(content => content.classList.add('hidden'));
+
+  // Show selected sub-tab
+  const subTabMap = {
+    'routes': 'settingsRoutesTab',
+    'products': 'settingsProductsTab',
+    'cars': 'settingsCarsTab',
+    'pricing': 'settingsPricingTab'
+  };
+
+  document.getElementById(subTabMap[subTabName]).classList.remove('hidden');
+
+  // Load data for the sub-tab
+  if (subTabName === 'routes') loadRoutes();
+  if (subTabName === 'products') loadProducts();
+  if (subTabName === 'cars') loadCars();
+  if (subTabName === 'pricing') loadPricingManagement();
+}
+
+// Settings menu dropdown toggle
+function toggleSettingsMenu() {
+  const dropdown = document.getElementById('settingsDropdown');
+  dropdown.classList.toggle('hidden');
+}
+
+// Setup dropdown listeners
+function setupDropdownListeners() {
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    const settingsMenu = document.querySelector('.settings-menu');
+    const dropdown = document.getElementById('settingsDropdown');
+
+    if (settingsMenu && !settingsMenu.contains(e.target)) {
+      dropdown.classList.add('hidden');
+    }
+  });
 }
 
 // Load all data
@@ -167,30 +225,219 @@ async function loadStats() {
   const year = document.getElementById('statsYear').value;
 
   try {
-    const res = await fetch(`/api/stats/monthly?month=${month}&year=${year}`);
-    const data = await res.json();
+    // Fetch both revenue and expense stats
+    const [revenueRes, expenseRes, routeRes] = await Promise.all([
+      fetch(`/api/stats/monthly?month=${month}&year=${year}`),
+      fetch(`/api/stats/expenses?month=${month}&year=${year}`),
+      fetch(`/api/entries?month=${month}&year=${year}`)
+    ]);
 
-    document.getElementById('statTotalEntries').textContent = data.total_entries || 0;
-    document.getElementById('statTotalTons').textContent = (data.total_tons || 0).toFixed(2);
-    document.getElementById('statTotalRevenue').textContent = `Rs ${(data.total_revenue || 0).toLocaleString()}`;
-    document.getElementById('statAvgRate').textContent = `Rs ${(data.avg_rate || 0).toLocaleString()}`;
+    const revenueData = await revenueRes.json();
+    const expenseData = await expenseRes.json();
+    const entriesData = await routeRes.json();
 
-    // Product breakdown table
+    const totalRevenue = revenueData.total_revenue || 0;
+    const totalExpenses = expenseData.total_amount || 0;
+    const netProfit = totalRevenue - totalExpenses;
+    const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : 0;
+
+    // Update key metrics
+    document.getElementById('statTotalRevenue').textContent = `Rs ${totalRevenue.toLocaleString()}`;
+    document.getElementById('statTotalEntries').textContent = `${revenueData.total_entries || 0} entries`;
+    document.getElementById('statTotalExpenses').textContent = `Rs ${totalExpenses.toLocaleString()}`;
+    document.getElementById('statExpenseCount').textContent = `${expenseData.total_expenses || 0} expenses`;
+    document.getElementById('statNetProfit').textContent = `Rs ${netProfit.toLocaleString()}`;
+    document.getElementById('statProfitMargin').textContent = `${profitMargin}% margin`;
+    document.getElementById('statTotalTons').textContent = (revenueData.total_tons || 0).toFixed(2);
+    document.getElementById('statAvgRate').textContent = `Rs ${(revenueData.avg_rate || 0).toLocaleString()} avg/entry`;
+
+    // Update profit card color
+    const profitCard = document.querySelector('.stat-card-profit');
+    if (netProfit >= 0) {
+      profitCard.style.background = 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)';
+    } else {
+      profitCard.style.background = 'linear-gradient(135deg, #eb3349 0%, #f45c43 100%)';
+    }
+
+    // Revenue vs Expenses Chart
+    const maxAmount = Math.max(totalRevenue, totalExpenses);
+    const revenuePercent = maxAmount > 0 ? (totalRevenue / maxAmount * 100) : 0;
+    const expensePercent = maxAmount > 0 ? (totalExpenses / maxAmount * 100) : 0;
+
+    document.getElementById('revenueBar').style.width = `${revenuePercent}%`;
+    document.getElementById('revenueBarValue').textContent = `Rs ${totalRevenue.toLocaleString()}`;
+    document.getElementById('expenseBar').style.width = `${expensePercent}%`;
+    document.getElementById('expenseBarValue').textContent = `Rs ${totalExpenses.toLocaleString()}`;
+
+    // Top Products visualization
+    const topProductsList = document.getElementById('topProductsList');
+    topProductsList.innerHTML = '';
+    if (revenueData.product_breakdown && revenueData.product_breakdown.length > 0) {
+      const topProducts = revenueData.product_breakdown.slice(0, 5);
+      const maxProductRevenue = topProducts[0]?.total_revenue || 1;
+
+      topProducts.forEach(product => {
+        const percent = (product.total_revenue / maxProductRevenue * 100);
+        const item = document.createElement('div');
+        item.className = 'top-item';
+        item.innerHTML = `
+          <div class="top-item-header">
+            <span class="top-item-name">${product.name}</span>
+            <span class="top-item-value">Rs ${product.total_revenue.toLocaleString()}</span>
+          </div>
+          <div class="top-item-bar-wrapper">
+            <div class="top-item-bar" style="width: ${percent}%"></div>
+          </div>
+          <div class="top-item-details">${product.count} deliveries • ${product.total_tons.toFixed(1)} tons</div>
+        `;
+        topProductsList.appendChild(item);
+      });
+    } else {
+      topProductsList.innerHTML = '<div class="no-data">No data available</div>';
+    }
+
+    // Top Routes visualization
+    const routeBreakdown = {};
+    entriesData.forEach(entry => {
+      if (!routeBreakdown[entry.route_name]) {
+        routeBreakdown[entry.route_name] = {
+          name: entry.route_name,
+          count: 0,
+          revenue: 0,
+          tons: 0
+        };
+      }
+      routeBreakdown[entry.route_name].count++;
+      routeBreakdown[entry.route_name].revenue += entry.calculated_rate;
+      routeBreakdown[entry.route_name].tons += entry.quantity_tons;
+    });
+
+    const topRoutes = Object.values(routeBreakdown).sort((a, b) => b.count - a.count).slice(0, 5);
+    const topRoutesList = document.getElementById('topRoutesList');
+    topRoutesList.innerHTML = '';
+
+    if (topRoutes.length > 0) {
+      const maxRouteCount = topRoutes[0]?.count || 1;
+      topRoutes.forEach(route => {
+        const percent = (route.count / maxRouteCount * 100);
+        const item = document.createElement('div');
+        item.className = 'top-item';
+        item.innerHTML = `
+          <div class="top-item-header">
+            <span class="top-item-name">${route.name}</span>
+            <span class="top-item-value">${route.count} trips</span>
+          </div>
+          <div class="top-item-bar-wrapper">
+            <div class="top-item-bar route-bar" style="width: ${percent}%"></div>
+          </div>
+          <div class="top-item-details">Rs ${route.revenue.toLocaleString()} • ${route.tons.toFixed(1)} tons</div>
+        `;
+        topRoutesList.appendChild(item);
+      });
+    } else {
+      topRoutesList.innerHTML = '<div class="no-data">No data available</div>';
+    }
+
+    // Expense Breakdown Chart
+    const expenseChart = document.getElementById('expenseBreakdownChart');
+    expenseChart.innerHTML = '';
+    if (expenseData.type_breakdown && expenseData.type_breakdown.length > 0) {
+      const maxExpense = Math.max(...expenseData.type_breakdown.map(e => e.total_amount));
+      expenseData.type_breakdown.forEach(expense => {
+        const percent = maxExpense > 0 ? (expense.total_amount / maxExpense * 100) : 0;
+        const item = document.createElement('div');
+        item.className = 'expense-item';
+        item.innerHTML = `
+          <div class="expense-item-header">
+            <span class="expense-item-name">${expense.name}</span>
+            <span class="expense-item-value">Rs ${parseFloat(expense.total_amount).toLocaleString()}</span>
+          </div>
+          <div class="expense-item-bar-wrapper">
+            <div class="expense-item-bar" style="width: ${percent}%"></div>
+          </div>
+          <div class="expense-item-count">${expense.count} transactions</div>
+        `;
+        expenseChart.appendChild(item);
+      });
+    } else {
+      expenseChart.innerHTML = '<div class="no-data">No expenses recorded</div>';
+    }
+
+    // Car Performance
+    const carPerformance = {};
+    entriesData.forEach(entry => {
+      if (!carPerformance[entry.car_number]) {
+        carPerformance[entry.car_number] = {
+          car: entry.car_number,
+          deliveries: 0,
+          revenue: 0,
+          tons: 0
+        };
+      }
+      carPerformance[entry.car_number].deliveries++;
+      carPerformance[entry.car_number].revenue += entry.calculated_rate;
+      carPerformance[entry.car_number].tons += entry.quantity_tons;
+    });
+
+    // Add expenses to car performance
+    if (expenseData.car_breakdown) {
+      expenseData.car_breakdown.forEach(carExp => {
+        if (!carPerformance[carExp.car_number]) {
+          carPerformance[carExp.car_number] = {
+            car: carExp.car_number,
+            deliveries: 0,
+            revenue: 0,
+            tons: 0
+          };
+        }
+        carPerformance[carExp.car_number].expenses = carExp.total_amount;
+      });
+    }
+
+    const carList = document.getElementById('carPerformanceList');
+    carList.innerHTML = '';
+    const carArray = Object.values(carPerformance).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+
+    if (carArray.length > 0) {
+      carArray.forEach(car => {
+        const netRevenue = car.revenue - (car.expenses || 0);
+        const item = document.createElement('div');
+        item.className = 'car-item';
+        item.innerHTML = `
+          <div class="car-item-header">
+            <span class="car-item-name">🚗 ${car.car}</span>
+            <span class="car-item-value">${car.deliveries} trips</span>
+          </div>
+          <div class="car-item-stats">
+            <span class="car-stat">Revenue: Rs ${car.revenue.toLocaleString()}</span>
+            <span class="car-stat">Expenses: Rs ${(car.expenses || 0).toLocaleString()}</span>
+            <span class="car-stat net">Net: Rs ${netRevenue.toLocaleString()}</span>
+          </div>
+        `;
+        carList.appendChild(item);
+      });
+    } else {
+      carList.innerHTML = '<div class="no-data">No car data available</div>';
+    }
+
+    // Product breakdown table (detailed)
     const tbody = document.querySelector('#productBreakdownTable tbody');
     tbody.innerHTML = '';
 
-    if (data.product_breakdown && data.product_breakdown.length > 0) {
-      data.product_breakdown.forEach(item => {
+    if (revenueData.product_breakdown && revenueData.product_breakdown.length > 0) {
+      revenueData.product_breakdown.forEach(item => {
+        const avgRate = item.total_tons > 0 ? (item.total_revenue / item.total_tons) : 0;
         const row = tbody.insertRow();
         row.innerHTML = `
-          <td>${item.name}</td>
+          <td><strong>${item.name}</strong></td>
           <td>${item.count}</td>
           <td>${item.total_tons.toFixed(2)}</td>
           <td>Rs ${item.total_revenue.toLocaleString()}</td>
+          <td>Rs ${avgRate.toLocaleString()}</td>
         `;
       });
     } else {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #999;">No data available</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #999;">No data available</td></tr>';
     }
   } catch (err) {
     console.error('Failed to load stats:', err);

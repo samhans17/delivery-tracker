@@ -26,6 +26,18 @@
       <h1>🚚 Delivery Tracker</h1>
       <div class="header-right">
         <span id="welcomeText"></span>
+        <div class="settings-menu">
+          <button class="settings-button" onclick="toggleSettingsMenu()">
+            ⚙️ Settings
+            <span class="dropdown-arrow">▼</span>
+          </button>
+          <div id="settingsDropdown" class="settings-dropdown hidden">
+            <a href="#" onclick="showSettingsSubTab('routes'); toggleSettingsMenu(); return false;" class="dropdown-item">🛣️ Routes</a>
+            <a href="#" onclick="showSettingsSubTab('products'); toggleSettingsMenu(); return false;" class="dropdown-item">📦 Products</a>
+            <a href="#" onclick="showSettingsSubTab('cars'); toggleSettingsMenu(); return false;" class="dropdown-item">🚗 Cars</a>
+            <a href="#" onclick="showSettingsSubTab('pricing'); toggleSettingsMenu(); return false;" class="dropdown-item">💰 Pricing</a>
+          </div>
+        </div>
         <button onclick="logout()" class="btn-secondary">Logout</button>
       </div>
     </div>
@@ -35,11 +47,7 @@
       <div class="tabs">
         <button class="tab active" onclick="showTab('dashboard')">📊 Dashboard</button>
         <button class="tab" onclick="showTab('entries')">📝 Entries</button>
-        <button class="tab" onclick="showTab('routes')">🛣️ Routes</button>
-        <button class="tab" onclick="showTab('products')">📦 Products</button>
-        <button class="tab" onclick="showTab('cars')">🚗 Cars</button>
         <button class="tab" onclick="showTab('expenses')">💸 Expenses</button>
-        <button class="tab" onclick="showTab('pricing')">💰 Pricing</button>
       </div>
 
       <!-- Dashboard Tab -->
@@ -52,37 +60,94 @@
             <button onclick="loadStats()" class="btn-primary">Load</button>
           </div>
         </div>
+
+        <!-- Key Metrics -->
         <div class="stats-grid">
-          <div class="stat-card">
-            <h3>Total Entries</h3>
-            <div class="stat-value" id="statTotalEntries">0</div>
-          </div>
-          <div class="stat-card">
-            <h3>Total Tons</h3>
-            <div class="stat-value" id="statTotalTons">0</div>
-          </div>
           <div class="stat-card">
             <h3>Total Revenue</h3>
             <div class="stat-value" id="statTotalRevenue">Rs 0</div>
+            <div class="stat-subtitle" id="statTotalEntries">0 entries</div>
           </div>
           <div class="stat-card">
-            <h3>Avg Rate/Entry</h3>
-            <div class="stat-value" id="statAvgRate">Rs 0</div>
+            <h3>Total Expenses</h3>
+            <div class="stat-value" id="statTotalExpenses">Rs 0</div>
+            <div class="stat-subtitle" id="statExpenseCount">0 expenses</div>
+          </div>
+          <div class="stat-card stat-card-profit">
+            <h3>Net Profit</h3>
+            <div class="stat-value" id="statNetProfit">Rs 0</div>
+            <div class="stat-subtitle" id="statProfitMargin">0% margin</div>
+          </div>
+          <div class="stat-card">
+            <h3>Total Tons Delivered</h3>
+            <div class="stat-value" id="statTotalTons">0</div>
+            <div class="stat-subtitle" id="statAvgRate">Rs 0 avg/entry</div>
           </div>
         </div>
-        <div class="product-breakdown">
-          <h3>Product Breakdown</h3>
-          <table id="productBreakdownTable">
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>Count</th>
-                <th>Total Tons</th>
-                <th>Total Revenue</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
+
+        <!-- Visual Analytics Grid -->
+        <div class="dashboard-analytics">
+          <!-- Revenue vs Expenses Chart -->
+          <div class="analytics-card">
+            <h3>Revenue vs Expenses</h3>
+            <div class="comparison-chart">
+              <div class="chart-bar-container">
+                <div class="chart-label">Revenue</div>
+                <div class="chart-bar-wrapper">
+                  <div class="chart-bar revenue-bar" id="revenueBar" style="width: 0%"></div>
+                  <span class="chart-value" id="revenueBarValue">Rs 0</span>
+                </div>
+              </div>
+              <div class="chart-bar-container">
+                <div class="chart-label">Expenses</div>
+                <div class="chart-bar-wrapper">
+                  <div class="chart-bar expense-bar" id="expenseBar" style="width: 0%"></div>
+                  <span class="chart-value" id="expenseBarValue">Rs 0</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Top Products -->
+          <div class="analytics-card">
+            <h3>Top Products by Revenue</h3>
+            <div class="top-items-list" id="topProductsList"></div>
+          </div>
+
+          <!-- Top Routes -->
+          <div class="analytics-card">
+            <h3>Top Routes by Deliveries</h3>
+            <div class="top-items-list" id="topRoutesList"></div>
+          </div>
+
+          <!-- Expense Breakdown -->
+          <div class="analytics-card">
+            <h3>Expense Breakdown</h3>
+            <div class="expense-chart" id="expenseBreakdownChart"></div>
+          </div>
+
+          <!-- Car Performance -->
+          <div class="analytics-card">
+            <h3>Car Performance</h3>
+            <div class="car-performance-list" id="carPerformanceList"></div>
+          </div>
+
+          <!-- Detailed Product Table -->
+          <div class="analytics-card full-width">
+            <h3>Product Breakdown Details</h3>
+            <table id="productBreakdownTable">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Deliveries</th>
+                  <th>Total Tons</th>
+                  <th>Total Revenue</th>
+                  <th>Avg Rate/Ton</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -154,131 +219,6 @@
         </div>
       </div>
 
-      <!-- Routes Tab -->
-      <div id="routesTab" class="tab-content hidden">
-        <div class="section-header">
-          <h2>Routes Management</h2>
-          <button onclick="showAddRouteForm()" class="btn-primary">+ Add Route</button>
-        </div>
-
-        <!-- Add/Edit Route Form -->
-        <div id="routeFormContainer" class="form-container hidden">
-          <h3 id="routeFormTitle">Add New Route</h3>
-          <form id="routeForm">
-            <input type="hidden" id="routeId">
-            <div class="form-group">
-              <label>Route Name</label>
-              <input type="text" id="routeName" required placeholder="e.g., Karachi to Lahore">
-            </div>
-            <div class="form-group">
-              <label>Description (Optional)</label>
-              <textarea id="routeDescription" rows="3" placeholder="Additional details about the route"></textarea>
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn-primary">Save Route</button>
-              <button type="button" onclick="cancelRouteForm()" class="btn-secondary">Cancel</button>
-            </div>
-          </form>
-        </div>
-
-        <!-- Routes List -->
-        <div class="table-container">
-          <table id="routesTable">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Description</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Products Tab -->
-      <div id="productsTab" class="tab-content hidden">
-        <div class="section-header">
-          <h2>Products Management</h2>
-          <button onclick="showAddProductForm()" class="btn-primary">+ Add Product</button>
-        </div>
-
-        <!-- Add/Edit Product Form -->
-        <div id="productFormContainer" class="form-container hidden">
-          <h3 id="productFormTitle">Add New Product</h3>
-          <form id="productForm">
-            <input type="hidden" id="productId">
-            <div class="form-group">
-              <label>Product Name</label>
-              <input type="text" id="productName" required placeholder="e.g., Cement">
-            </div>
-            <div class="form-group">
-              <label>Price per Ton (Rs)</label>
-              <input type="number" id="productPrice" step="0.01" required placeholder="e.g., 5000">
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn-primary">Save Product</button>
-              <button type="button" onclick="cancelProductForm()" class="btn-secondary">Cancel</button>
-            </div>
-          </form>
-        </div>
-
-        <!-- Products List -->
-        <div class="table-container">
-          <table id="productsTable">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Price per Ton</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Cars Tab -->
-      <div id="carsTab" class="tab-content hidden">
-        <div class="section-header">
-          <h2>Cars Management</h2>
-          <button onclick="showAddCarForm()" class="btn-primary">+ Add Car</button>
-        </div>
-
-        <!-- Add/Edit Car Form -->
-        <div id="carFormContainer" class="form-container hidden">
-          <h3 id="carFormTitle">Add New Car</h3>
-          <form id="carForm">
-            <input type="hidden" id="carId">
-            <div class="form-group">
-              <label for="carNumber">Car Number</label>
-              <input type="text" id="carNumber" required placeholder="e.g., ABC-123">
-            </div>
-            <div class="form-group">
-              <label for="carDescription">Description (Optional)</label>
-              <textarea id="carDescription" rows="2" placeholder="e.g., Owner name, capacity, etc."></textarea>
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn-primary">Save Car</button>
-              <button type="button" onclick="cancelCarForm()" class="btn-secondary">Cancel</button>
-            </div>
-          </form>
-        </div>
-
-        <!-- Cars List -->
-        <div class="table-container">
-          <table id="carsTable">
-            <thead>
-              <tr>
-                <th>Car Number</th>
-                <th>Description</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
 
       <!-- Expenses Tab -->
       <div id="expensesTab" class="tab-content hidden">
@@ -435,6 +375,180 @@
           <button onclick="savePricingChanges()" class="btn-primary">Save Changes</button>
         </div>
       </div>
+
+      <!-- Settings Tab -->
+      <div id="settingsTab" class="tab-content hidden">
+        <div class="section-header">
+          <h2>Settings</h2>
+        </div>
+
+        <!-- Settings Sub-Navigation -->
+        <div class="settings-tabs">
+          <button class="settings-tab active" onclick="showSettingsSubTab('routes')">🛣️ Routes</button>
+          <button class="settings-tab" onclick="showSettingsSubTab('products')">📦 Products</button>
+          <button class="settings-tab" onclick="showSettingsSubTab('cars')">🚗 Cars</button>
+          <button class="settings-tab" onclick="showSettingsSubTab('pricing')">💰 Pricing</button>
+        </div>
+
+        <!-- Routes Sub-Tab -->
+        <div id="settingsRoutesTab" class="settings-subtab-content">
+          <div class="section-header">
+            <h2>Routes Management</h2>
+            <button onclick="showAddRouteForm()" class="btn-primary">+ Add Route</button>
+          </div>
+
+          <!-- Add/Edit Route Form -->
+          <div id="routeFormContainer" class="form-container hidden">
+            <h3 id="routeFormTitle">Add New Route</h3>
+            <form id="routeForm">
+              <input type="hidden" id="routeId">
+              <div class="form-group">
+                <label>Route Name</label>
+                <input type="text" id="routeName" required placeholder="e.g., Karachi to Lahore">
+              </div>
+              <div class="form-group">
+                <label>Description (Optional)</label>
+                <textarea id="routeDescription" rows="3" placeholder="Additional details about the route"></textarea>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn-primary">Save Route</button>
+                <button type="button" onclick="cancelRouteForm()" class="btn-secondary">Cancel</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Routes List -->
+          <div class="table-container">
+            <table id="routesTable">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Description</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Products Sub-Tab -->
+        <div id="settingsProductsTab" class="settings-subtab-content hidden">
+          <div class="section-header">
+            <h2>Products Management</h2>
+            <button onclick="showAddProductForm()" class="btn-primary">+ Add Product</button>
+          </div>
+
+          <!-- Add/Edit Product Form -->
+          <div id="productFormContainer" class="form-container hidden">
+            <h3 id="productFormTitle">Add New Product</h3>
+            <form id="productForm">
+              <input type="hidden" id="productId">
+              <div class="form-group">
+                <label>Product Name</label>
+                <input type="text" id="productName" required placeholder="e.g., Cement">
+              </div>
+              <div class="form-group">
+                <label>Price per Ton (Rs)</label>
+                <input type="number" id="productPrice" step="0.01" required placeholder="e.g., 5000">
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn-primary">Save Product</button>
+                <button type="button" onclick="cancelProductForm()" class="btn-secondary">Cancel</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Products List -->
+          <div class="table-container">
+            <table id="productsTable">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Price per Ton</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Cars Sub-Tab -->
+        <div id="settingsCarsTab" class="settings-subtab-content hidden">
+          <div class="section-header">
+            <h2>Cars Management</h2>
+            <button onclick="showAddCarForm()" class="btn-primary">+ Add Car</button>
+          </div>
+
+          <!-- Add/Edit Car Form -->
+          <div id="carFormContainer" class="form-container hidden">
+            <h3 id="carFormTitle">Add New Car</h3>
+            <form id="carForm">
+              <input type="hidden" id="carId">
+              <div class="form-group">
+                <label for="carNumber">Car Number</label>
+                <input type="text" id="carNumber" required placeholder="e.g., ABC-123">
+              </div>
+              <div class="form-group">
+                <label for="carDescription">Description (Optional)</label>
+                <textarea id="carDescription" rows="2" placeholder="e.g., Owner name, capacity, etc."></textarea>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn-primary">Save Car</button>
+                <button type="button" onclick="cancelCarForm()" class="btn-secondary">Cancel</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Cars List -->
+          <div class="table-container">
+            <table id="carsTable">
+              <thead>
+                <tr>
+                  <th>Car Number</th>
+                  <th>Description</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Pricing Sub-Tab -->
+        <div id="settingsPricingTab" class="settings-subtab-content hidden">
+          <div class="section-header">
+            <h2>Route-Product Pricing Management</h2>
+          </div>
+
+          <div class="pricing-filters">
+            <label>
+              View by:
+              <select id="pricingViewMode" onchange="loadPricingManagement()">
+                <option value="route">Route</option>
+                <option value="product">Product</option>
+              </select>
+            </label>
+            <label>
+              Select:
+              <select id="pricingViewId" onchange="loadPricingDetails()"></select>
+            </label>
+          </div>
+
+          <div class="pricing-table-container">
+            <table id="pricingManagementTable">
+              <thead id="pricingTableHead"></thead>
+              <tbody id="pricingTableBody"></tbody>
+            </table>
+          </div>
+
+          <div class="pricing-actions">
+            <button onclick="savePricingChanges()" class="btn-primary">Save Changes</button>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <!-- Pricing Configuration Modal -->

@@ -63,7 +63,7 @@ function initializeDatabase() {
   if (expenseTypeCount.count === 0) {
     const insertExpenseType = db.prepare('INSERT INTO expense_types (name) VALUES (?)');
     insertExpenseType.run('Petrol');
-    insertExpenseType.run('Puncture');
+    insertExpenseType.run('Maintainance');
     insertExpenseType.run('Service');
     insertExpenseType.run('Other');
   }
