@@ -62,10 +62,11 @@ function initializeDatabase() {
   const expenseTypeCount = db.prepare('SELECT COUNT(*) as count FROM expense_types').get();
   if (expenseTypeCount.count === 0) {
     const insertExpenseType = db.prepare('INSERT INTO expense_types (name) VALUES (?)');
-    insertExpenseType.run('Petrol');
+    insertExpenseType.run('Oil change');
+    insertExpenseType.run('Traffic Challan');
     insertExpenseType.run('Maintainance');
-    insertExpenseType.run('Service');
-    insertExpenseType.run('Other');
+    insertExpenseType.run('puncture/Hawa');
+    insertExpenseType.run("driver's wage");
   }
 
   // Expenses table

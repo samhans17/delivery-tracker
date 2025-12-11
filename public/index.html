@@ -10,7 +10,10 @@
   <!-- Login Screen -->
   <div id="loginScreen" class="screen">
     <div class="login-container">
-      <h1>🚚 Delivery Tracker</h1>
+      <div class="login-title">
+        <div class="login-company-name">NVD Enterprises</div>
+        <h1>🚚 Delivery Tracking App</h1>
+      </div>
       <form id="loginForm">
         <input type="text" id="username" placeholder="Username" autocomplete="username" required>
         <input type="password" id="password" placeholder="Password" autocomplete="current-password" required>
@@ -23,7 +26,10 @@
   <!-- Dashboard Screen -->
   <div id="dashboardScreen" class="screen hidden">
     <div class="header">
-      <h1>🚚 Delivery Tracker</h1>
+      <div class="header-title">
+        <div class="company-name">NVD Enterprises</div>
+        <h1>🚚 Delivery Tracking App</h1>
+      </div>
       <div class="header-right">
         <span id="welcomeText"></span>
         <div class="settings-menu">
@@ -55,6 +61,9 @@
         <div class="stats-header">
           <h2>Monthly Statistics</h2>
           <div class="month-selector">
+            <select id="statsCar">
+              <option value="">All Cars</option>
+            </select>
             <select id="statsMonth"></select>
             <select id="statsYear"></select>
             <button onclick="loadStats()" class="btn-primary">Load</button>
@@ -341,38 +350,6 @@
               <tbody></tbody>
             </table>
           </div>
-        </div>
-      </div>
-
-      <!-- Pricing Management Tab -->
-      <div id="pricingTab" class="tab-content hidden">
-        <div class="section-header">
-          <h2>Route-Product Pricing Management</h2>
-        </div>
-
-        <div class="pricing-filters">
-          <label>
-            View by:
-            <select id="pricingViewMode" onchange="loadPricingManagement()">
-              <option value="route">Route</option>
-              <option value="product">Product</option>
-            </select>
-          </label>
-          <label>
-            Select:
-            <select id="pricingViewId" onchange="loadPricingDetails()"></select>
-          </label>
-        </div>
-
-        <div class="pricing-table-container">
-          <table id="pricingManagementTable">
-            <thead id="pricingTableHead"></thead>
-            <tbody id="pricingTableBody"></tbody>
-          </table>
-        </div>
-
-        <div class="pricing-actions">
-          <button onclick="savePricingChanges()" class="btn-primary">Save Changes</button>
         </div>
       </div>
 

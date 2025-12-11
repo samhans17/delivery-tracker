@@ -28,10 +28,25 @@ body {
   padding: 20px;
 }
 
+.login-title {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.login-company-name {
+  color: white;
+  font-size: 2.8rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+}
+
 .login-container h1 {
   color: white;
-  margin-bottom: 30px;
-  font-size: 2.5rem;
+  font-size: 2rem;
+  font-weight: 500;
 }
 
 #loginForm {
@@ -90,9 +105,24 @@ body {
   align-items: center;
 }
 
+.header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.company-name {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #333;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
 .header h1 {
   color: #667eea;
-  font-size: 1.8rem;
+  font-size: 1.5rem;
+  font-weight: 500;
 }
 
 .header-right {

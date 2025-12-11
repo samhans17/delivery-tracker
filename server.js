@@ -496,7 +496,7 @@ app.post('/api/route-product-pricing/bulk', requireAuth, (req, res) => {
 
 // Get all entries with details
 app.get('/api/entries', requireAuth, (req, res) => {
-  const { month, year } = req.query;
+  const { month, year, car_id } = req.query;
 
   let query = `
     SELECT
@@ -514,11 +514,18 @@ app.get('/api/entries', requireAuth, (req, res) => {
     JOIN routes r ON e.route_id = r.id
     JOIN products p ON e.product_id = p.id
     LEFT JOIN cars c ON e.car_id = c.id
+    WHERE 1=1
   `;
 
   const params = [];
+
+  if (car_id) {
+    query += ` AND e.car_id = ?`;
+    params.push(car_id);
+  }
+
   if (month && year) {
-    query += ` WHERE strftime('%Y-%m', e.entry_date) = ?`;
+    query += ` AND strftime('%Y-%m', e.entry_date) = ?`;
     params.push(`${year}-${month.padStart(2, '0')}`);
   }
 
@@ -637,7 +644,7 @@ app.delete('/api/entries/:id', requireAuth, (req, res) => {
 
 // Get monthly statistics
 app.get('/api/stats/monthly', requireAuth, (req, res) => {
-  const { month, year } = req.query;
+  const { month, year, car_id } = req.query;
   const dateFilter = month && year ? `${year}-${month.padStart(2, '0')}` : null;
 
   let query = `
@@ -647,11 +654,18 @@ app.get('/api/stats/monthly', requireAuth, (req, res) => {
       SUM(calculated_rate) as total_revenue,
       AVG(calculated_rate) as avg_rate
     FROM entries
+    WHERE 1=1
   `;
 
   const params = [];
+
+  if (car_id) {
+    query += ` AND car_id = ?`;
+    params.push(car_id);
+  }
+
   if (dateFilter) {
-    query += ` WHERE strftime('%Y-%m', entry_date) = ?`;
+    query += ` AND strftime('%Y-%m', entry_date) = ?`;
     params.push(dateFilter);
   }
 
@@ -666,10 +680,15 @@ app.get('/api/stats/monthly', requireAuth, (req, res) => {
       SUM(e.calculated_rate) as total_revenue
     FROM entries e
     JOIN products p ON e.product_id = p.id
+    WHERE 1=1
   `;
 
+  if (car_id) {
+    productQuery += ` AND e.car_id = ?`;
+  }
+
   if (dateFilter) {
-    productQuery += ` WHERE strftime('%Y-%m', e.entry_date) = ?`;
+    productQuery += ` AND strftime('%Y-%m', e.entry_date) = ?`;
   }
 
   productQuery += ` GROUP BY p.id, p.name ORDER BY total_revenue DESC`;

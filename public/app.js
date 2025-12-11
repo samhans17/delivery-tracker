@@ -94,10 +94,32 @@ function initializeDateSelectors() {
     yearSelect.appendChild(option);
   }
 
-  // Set default date in entry form
-  document.getElementById('entryDate').valueAsDate = currentDate;
+  // Add event listeners for dashboard filters
+  monthSelect.addEventListener('change', loadStats);
+  yearSelect.addEventListener('change', loadStats);
+  document.getElementById('statsCar').addEventListener('change', loadStats);
+}
 
-  // Initialize expense filter date selectors
+// Update car selector for dashboard
+function updateDashboardCarSelector() {
+  const carSelect = document.getElementById('statsCar');
+  // Keep "All Cars" option and add individual cars
+  carSelect.innerHTML = '<option value="">All Cars</option>';
+  cars.forEach(car => {
+    const option = document.createElement('option');
+    option.value = car.id;
+    option.textContent = car.car_number;
+    carSelect.appendChild(option);
+  });
+}
+
+// Initialize expense filter date selectors (called separately)
+function initializeExpenseFilters() {
+  const currentDate = new Date();
+  const currentMonth = currentDate.getMonth() + 1;
+  const currentYear = currentDate.getFullYear();
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
   const expenseFilterMonth = document.getElementById('expenseFilterMonth');
   const expenseFilterYear = document.getElementById('expenseFilterYear');
 
@@ -116,6 +138,9 @@ function initializeDateSelectors() {
     if (year === currentYear) option.selected = true;
     expenseFilterYear.appendChild(option);
   }
+
+  // Set default date in entry form
+  document.getElementById('entryDate').valueAsDate = new Date();
 }
 
 // Tab switching
@@ -214,7 +239,10 @@ function loadAllData() {
   loadStats();
   loadRoutes();
   loadProducts();
-  loadCars();
+  loadCars().then(() => {
+    // Populate car selector after cars are loaded
+    updateDashboardCarSelector();
+  });
   loadEntries();
 }
 
@@ -223,18 +251,27 @@ function loadAllData() {
 async function loadStats() {
   const month = document.getElementById('statsMonth').value;
   const year = document.getElementById('statsYear').value;
+  const carId = document.getElementById('statsCar').value;
 
   try {
+    // Build API URLs with car filter if selected
+    const params = `month=${month}&year=${year}${carId ? `&car_id=${carId}` : ''}`;
+
     // Fetch both revenue and expense stats
     const [revenueRes, expenseRes, routeRes] = await Promise.all([
-      fetch(`/api/stats/monthly?month=${month}&year=${year}`),
-      fetch(`/api/stats/expenses?month=${month}&year=${year}`),
-      fetch(`/api/entries?month=${month}&year=${year}`)
+      fetch(`/api/stats/monthly?${params}`),
+      fetch(`/api/stats/expenses?${params}`),
+      fetch(`/api/entries?${params}`)
     ]);
 
     const revenueData = await revenueRes.json();
     const expenseData = await expenseRes.json();
-    const entriesData = await routeRes.json();
+    let entriesData = await routeRes.json();
+
+    // Additional client-side filtering by car if selected
+    if (carId) {
+      entriesData = entriesData.filter(entry => entry.car_id === parseInt(carId));
+    }
 
     const totalRevenue = revenueData.total_revenue || 0;
     const totalExpenses = expenseData.total_amount || 0;
@@ -649,6 +686,9 @@ async function loadCars() {
 
     // Update car dropdown in entry form
     updateCarDropdown();
+
+    // Update dashboard car selector
+    updateDashboardCarSelector();
   } catch (err) {
     console.error('Failed to load cars:', err);
   }
@@ -1374,6 +1414,10 @@ function closePricingModal() {
 // ============= PRICING MANAGEMENT TAB FUNCTIONS =============
 
 async function loadPricingManagement() {
+  // Ensure routes and products are loaded
+  if (routes.length === 0) await loadRoutes();
+  if (products.length === 0) await loadProducts();
+
   const viewMode = document.getElementById('pricingViewMode').value;
   const viewSelect = document.getElementById('pricingViewId');
   viewSelect.innerHTML = '<option value="">Select...</option>';
